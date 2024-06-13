@@ -1,75 +1,113 @@
+import textwrap
+from typing import Callable, Optional
+
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-def substitute(line: str, alpha1: str, alpha2: str) -> str:
-    newline = ""
-    for char in line:
-        if char.isalpha():
-            char = char.upper()
-            index = alpha1.index(char)
-            char = alpha2[index]
+class Cipher:
+    @staticmethod
+    def normalizeText(func: Callable) -> Callable:
+        def wrapper(self, text: str, *args, **kwargs) -> str:
+            normalText = ""
+            for char in text:
+                if char.isalpha():
+                    char = char.upper()
+                    normalText += char
 
-        newline += char
+            return func(self, normalText, *args, **kwargs)
+        return wrapper
 
-    return newline
+    @staticmethod
+    def constructFilePath(func: Callable) -> Callable:
+        def wrapper(self, inputFilePath: str, outputFilePath: str = None, *args, **kwargs) -> str:
+            if not outputFilePath:
+                temp = inputFilePath.split('.')
+                cipherName = self.__class__.__name__.lower()
+                funcName = func.__name__.lower()
+                outputFilePath = f"{temp[0]}.{cipherName}.{funcName}.{temp[-1]}"
 
-def processFile(inputFilePath: str, outputFilePath: str, alpha1: [str], alpha2: [str]):
+            return func(self, inputFilePath, outputFilePath, *args, **kwargs)
+        return wrapper
+
+    @normalizeText
+    def encryptText():
+        raise NotImplementedError
+
+    @normalizeText
+    def decryptText():
+        raise NotImplementedError
+
+    @constructFilePath
+    def encryptFile(self, inputFilePath: str, outputFilePath: Optional[str] = None) -> str:
         with open(inputFilePath, 'r', encoding='utf-8') as inputFile, \
             open(outputFilePath, 'w', encoding='utf-8') as outputFile:
-            for line in inputFile:
-                newline = substitute(line, alpha1, alpha2)
-                outputFile.write(newline)
+            text = inputFile.read()
+            newText = self.encryptText(text)
+            newText = textwrap.wrap(newText, width=80)
+            outputFile.write('\n'.join(newText))
 
+        return outputFilePath
 
-class Atbash:
+    @constructFilePath
+    def decryptFile(self, inputFilePath: str, outputFilePath: Optional[str] = None) -> str:
+        with open(inputFilePath, 'r', encoding='utf-8') as inputFile, \
+            open(outputFilePath, 'w', encoding='utf-8') as outputFile:
+            text = inputFile.read()
+            newText = self.decryptText(text)
+            newText = textwrap.wrap(newText, width=80)
+            outputFile.write('\n'.join(newText))
+
+        return outputFilePath
+
+class Atbash(Cipher):
     def __init__(self):
         self.alpha = ALPHABET[::-1]
 
-    def encrypt(self, inputFilePath: str, outputFilePath: str = None) -> str:
-        if not outputFilePath:
-            temp = inputFilePath.split('.')
-            outputFilePath = temp[0] + ".atbash_E." + temp[-1]
+    @Cipher.normalizeText
+    def encryptText(self, text: str) -> str:
+        newText = ""
+        for char in text:
+            index = ALPHABET.index(char)
+            newChar = self.alpha[index]
+            newText += newChar
+        return newText
 
-        processFile(inputFilePath, outputFilePath, ALPHABET, self.alpha)
+    @Cipher.normalizeText
+    def decryptText(self, text: str) -> str:
+        return self.encryptText(text)
 
-        return outputFilePath
-
-    def decrypt(self, inputFilePath: str, outputFilePath: str = None) -> str:
-        if not outputFilePath:
-            temp = inputFilePath.split('.')
-            outputFilePath = temp[0] + ".atbash_D." + temp[-1]
-
-        self.encrypt(inputFilePath, outputFilePath)
-
-        return outputFilePath
-
-class Caesar:
+class Caesar(Cipher):
     def __init__(self, shift: int = 13):
         shift = shift % len(ALPHABET)
         self.alpha = ALPHABET[shift:] + ALPHABET[:shift]
 
-    def encrypt(self, inputFilePath: str, outputFilePath: str = None) -> str:
-        if not outputFilePath:
-            temp = inputFilePath.split('.')
-            outputFilePath = temp[0] + ".caesar_E." + temp[-1]
+    @Cipher.normalizeText
+    def encryptText(self, text: str) -> str:
+        newText = ""
+        for char in text:
+            index = ALPHABET.index(char)
+            newChar = self.alpha[index]
+            newText += newChar
+        return newText
 
-        processFile(inputFilePath, outputFilePath, ALPHABET, self.alpha)
+    @Cipher.normalizeText
+    def decryptText(self, text: str) -> str:
+        newText = ""
+        for char in text:
+            index = self.alpha.index(char)
+            newChar = ALPHABET[index]
+            newText += newChar
+        return newText
 
-        return outputFilePath
+class TabulaRecta(Cipher):
+    def __init__(self):
+        self.alpha = ALPHABET
 
-    def decrypt(self, inputFilePath: str, outputFilePath: str = None) -> str:
-        if not outputFilePath:
-            temp = inputFilePath.split('.')
-            outputFilePath = temp[0] + ".caesar_D." + temp[-1]
-
-        processFile(inputFilePath, outputFilePath, self.alpha, ALPHABET)
-
-        return outputFilePath
 
 if __name__ == "__main__":
     test1 = Atbash()
-    test1.encrypt("text/sample_message.txt")
-    test1.decrypt("text/sample_message.atbash_E.txt")
+    encryptedFileName = test1.encryptFile("text/sample_message.txt")
+    test1.decryptFile(encryptedFileName)
 
     test2 = Caesar()
-    test2.encrypt("text/the_raven.txt")
-    test2.decrypt("text/the_raven.caesar_E.txt")
+    encryptedFileName = test2.encryptFile("text/the_raven.txt")
+    test2.decryptFile(encryptedFileName)
